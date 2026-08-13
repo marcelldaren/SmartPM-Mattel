@@ -5,6 +5,12 @@
 # AI_SERVICE_URL — and never needs to be exposed or configured.
 set -euo pipefail
 
+# Resolve the application root from this script's own location rather than hard-coding it.
+# The image's WORKDIR is not guaranteed: it moved from /app to the runtime user's home when
+# the build switched to the base image's existing uid-1000 account, and hard-coded paths
+# broke the container while the build itself still reported success.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # The signing key must exist or the auth module throws on first use. A deployment where the
 # operator did not set one should still boot, so generate a random key for this container's
 # lifetime. The cost is that a restart invalidates existing sessions and everyone logs in
@@ -31,7 +37,7 @@ if [ -z "${GEMINI_API_KEY:-}" ]; then
   echo "start:           will fall back to its deterministic template output."
 fi
 
-cd /app/ai-service
+cd "$ROOT/ai-service"
 python3 -m uvicorn main:app --host 127.0.0.1 --port 5001 &
 AI_PID=$!
 
@@ -53,5 +59,5 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-cd /app/server
+cd "$ROOT/server"
 exec npm start
