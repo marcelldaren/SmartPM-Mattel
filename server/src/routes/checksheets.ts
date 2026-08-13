@@ -19,7 +19,7 @@ import { draftPartRequest } from '../ai/agent.js'
 import { queueVerifications, runVerifications } from '../ai/vision.js'
 import type { PendingPhoto } from '../ai/vision.js'
 import { scanChecksheet } from '../ai/scan.js'
-import { sendMail } from '../email/mailer.js'
+import { queueMail } from '../email/mailer.js'
 import { renderPartRequestEmail } from '../email/template.js'
 import { asyncHandler } from '../util/asyncHandler.js'
 
@@ -213,7 +213,7 @@ checksheetsRouter.post('/api/checksheets', requireAuth, asyncHandler<AuthedReque
       // Auto-approved requests send immediately — a real email if SMTP is configured,
       // otherwise the status still moves to "auto/sent" as a simulated send.
       if (draft.status === 'auto') {
-        await sendMail(
+        queueMail(
           vendor.email,
           draft.subject,
           draft.body,

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { requireAuth, requireRole } from '../auth/middleware.js'
 import { getPartRequestByCode, listPartRequests, updatePartRequestStatus } from '../db/repo/partRequests.js'
-import { sendMail } from '../email/mailer.js'
+import { queueMail } from '../email/mailer.js'
 import { renderPartRequestEmail } from '../email/template.js'
 import { asyncHandler } from '../util/asyncHandler.js'
 
@@ -24,7 +24,7 @@ partRequestsRouter.post(
     }
     // Real email if SMTP is configured, otherwise a simulated send (status flip only) —
     // approval itself never blocks on the network.
-    await sendMail(
+    queueMail(
       row.vendorEmail,
       row.email.subject,
       row.email.body,

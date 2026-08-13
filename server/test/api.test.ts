@@ -26,8 +26,12 @@ vi.mock('../src/ai/client.js', () => ({
 
 // Stub SMTP too — real sending is opt-in via env vars in production, but tests must never
 // attempt a real network send regardless of what's in a developer's local .env.
+// An explicit factory replaces the whole module, so every export a route imports has to be
+// listed here — a missing one throws at call time and surfaces as a 500 from the route
+// rather than as an obviously-wrong mock.
 vi.mock('../src/email/mailer.js', () => ({
   sendMail: vi.fn(async () => false),
+  queueMail: vi.fn(() => undefined),
   isEmailConfigured: vi.fn(() => false),
 }))
 

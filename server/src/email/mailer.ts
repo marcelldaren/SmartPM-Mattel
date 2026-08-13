@@ -43,6 +43,14 @@ function getTransporter() {
       port: SMTP_PORT,
       secure: SMTP_SECURE,
       auth: { user: SMTP_USER, pass: SMTP_PASS },
+      // Nodemailer's defaults are 2 minutes to connect and 10 on the socket, which suit a
+      // background mail queue and not a request a person is waiting on. Cloud hosts
+      // frequently block outbound SMTP, and a blocked port does not refuse the connection
+      // — it swallows it, so the default is the full two-minute hang. These ceilings turn
+      // an unreachable mail server into a fast, logged failure.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     })
   }
   return transporter
@@ -53,6 +61,26 @@ function getTransporter() {
  * given it's sent alongside the plain text as a multipart alternative, so clients that
  * block HTML still get the readable version.
  */
+/**
+ * Send without making the caller wait for the mail server.
+ *
+ * Delivery is not part of the decision being recorded. Approving a part request is a
+ * supervisor's judgement that is already persisted; whether the vendor's mail host answers
+ * in 200ms or 20s has no bearing on it, and blocking the HTTP response on that turns a
+ * one-click action into an indefinite spinner. Nothing reads the result — a failed send has
+ * always left the status at "sent" — so awaiting it only ever cost latency.
+ *
+ * Failures are logged rather than surfaced: the screen genuinely cannot tell you delivery
+ * failed, so the server log is where to look when an expected message never arrives.
+ */
+export function queueMail(to: string, subject: string, body: string, html?: string): void {
+  void sendMail(to, subject, body, html)
+    .then((ok) => {
+      if (!ok) console.error(`queueMail: delivery failed or not configured — "${subject}"`)
+    })
+    .catch((err) => console.error('queueMail: unexpected error', err))
+}
+
 export async function sendMail(to: string, subject: string, body: string, html?: string): Promise<boolean> {
   if (!isEmailConfigured()) return false
   try {
