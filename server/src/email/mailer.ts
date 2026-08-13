@@ -30,8 +30,48 @@ const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER
  */
 const DEMO_RECIPIENT = process.env.DEMO_VENDOR_EMAIL ?? ''
 
+/**
+ * HTTP delivery, used in preference to SMTP whenever an API key is present.
+ *
+ * Managed hosts routinely block outbound SMTP to stop their address ranges being used for
+ * spam, and a blocked port does not refuse the connection — it drops it, so the symptom is
+ * a timeout rather than an error naming the cause. No port or credential fixes that. An
+ * HTTP mail API travels over 443 like any other request, so it is unaffected.
+ *
+ * SMTP remains the path locally, where it works and needs no third-party account.
+ */
+const RESEND_API_KEY = process.env.RESEND_API_KEY ?? ''
+// Resend's shared sender, which works without verifying a domain. A free account may only
+// send to the address it was registered with — which is exactly the demo case, where
+// DEMO_VENDOR_EMAIL is the operator's own inbox.
+const RESEND_FROM = process.env.RESEND_FROM || 'SmartPM <onboarding@resend.dev>'
+
+async function sendViaResend(to: string, subject: string, body: string, html?: string): Promise<boolean> {
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${RESEND_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, text: body, ...(html ? { html } : {}) }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!res.ok) {
+      // The response body carries the actual reason (unverified sender, recipient not
+      // allowed on a free account); a bare status code would send someone guessing.
+      console.error(`Resend send failed: ${res.status} ${(await res.text()).slice(0, 300)}`)
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('Resend send failed:', err)
+    return false
+  }
+}
+
 export function isEmailConfigured(): boolean {
-  return Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS)
+  return Boolean(RESEND_API_KEY) || Boolean(SMTP_HOST && SMTP_USER && SMTP_PASS)
 }
 
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null
@@ -57,10 +97,6 @@ function getTransporter() {
 }
 
 /**
- * Never throws — returns whether a real email was actually sent. `html` is optional; when
- * given it's sent alongside the plain text as a multipart alternative, so clients that
- * block HTML still get the readable version.
- */
 /**
  * Send without making the caller wait for the mail server.
  *
@@ -81,10 +117,17 @@ export function queueMail(to: string, subject: string, body: string, html?: stri
     .catch((err) => console.error('queueMail: unexpected error', err))
 }
 
+/**
+ * Never throws — returns whether a real email was actually sent. `html` is optional; when
+ * given it's sent alongside the plain text as a multipart alternative, so clients that
+ * block HTML still get the readable version.
+ */
 export async function sendMail(to: string, subject: string, body: string, html?: string): Promise<boolean> {
   if (!isEmailConfigured()) return false
+  const recipient = DEMO_RECIPIENT || to
+  // HTTP first when available: it is the transport that survives a host blocking SMTP.
+  if (RESEND_API_KEY) return sendViaResend(recipient, subject, body, html)
   try {
-    const recipient = DEMO_RECIPIENT || to
     await getTransporter().sendMail({
       from: SMTP_FROM,
       to: recipient,
