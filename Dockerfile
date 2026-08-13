@@ -27,6 +27,14 @@ RUN apt-get update \
 # file is already owned by the account that will run the process — the alternative is a
 # recursive chown at the end, which rewrites metadata for every file and duplicates them
 # into a new layer, bloating the image for no benefit.
+# Python packages go in system site-packages, installed as root before dropping privileges.
+# Installing them with --user instead puts them under one account's ~/.local, which is on
+# sys.path only for that account — and hosts differ on which user actually runs the
+# container (Spaces use uid 1000, others use root). A system-wide install is readable by
+# whichever one it turns out to be, so `python3 -m uvicorn` resolves either way.
+COPY ai-service/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
+
 RUN useradd -m -u 1000 user
 USER user
 ENV HOME=/home/user \
@@ -39,13 +47,6 @@ COPY --chown=user package.json package-lock.json ./
 RUN npm ci
 COPY --chown=user server/package.json server/package-lock.json ./server/
 RUN cd server && npm ci
-
-COPY --chown=user ai-service/requirements.txt ./ai-service/
-# Installs into ~/.local, which is on the default sys.path for this user — so no venv to
-# activate and no root-owned site-packages. --break-system-packages is required because
-# Debian marks its system Python externally managed (PEP 668); inside a container there is
-# no host environment for that rule to protect.
-RUN pip install --no-cache-dir --break-system-packages --user -r ai-service/requirements.txt
 
 COPY --chown=user . .
 
