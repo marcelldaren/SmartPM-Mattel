@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+@theme {
+  /* Barlow is a low-contrast grotesk derived from public-signage lettering; IBM Plex Mono
+     carries the instrument-readout voice. The pairing is the typographic half of the
+     control-panel identity — see .readout below for where the mono face is applied. */
+  --font-sans: "Barlow", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Industrial chrome — deep blueprint navy for machine tiles and panel headers. */
+  --color-steel-900: #0f2a38;
+  --color-steel-800: #143a4c;
+
+  /* Status lights. Three distinct states: green healthy, amber flagged, red critical.
+     signal-green is brighter than --color-success so it reads as an illuminated LED;
+     --color-success stays the text-safe variant. signal-red is new — accent orange was
+     previously doing double duty for both "caution" and "critical". */
+  --color-signal-green: #1f8a4c;
+  --color-signal-amber: #e97132;
+  --color-signal-red: #c1342b;
+
+  /* On-dark variants. The signal colours above are tuned for dark text on a light page;
+     on the steel-900 machine tiles they are darker than their own background and become
+     nearly unreadable — worst of all for "Overdue", which is the single most important
+     word on that panel. These lighter tints keep the same meaning at readable contrast. */
+  --color-signal-red-soft: #ff8f80;
+  --color-signal-amber-soft: #ffb27a;
+
+  /* Blueprint hairlines and grid overlays. */
+  --color-grid-line: #cbd8df;
+
+  /* SmartPM palette */
+  --color-primary-50: #edf4f8;
+  --color-primary-100: #d9e7ef;
+  --color-primary-200: #b5d0df;
+  --color-primary: #156082;
+  --color-primary-700: #114e6a;
+  --color-primary-800: #0d3e55;
+
+  --color-accent-50: #fdf1e7;
+  --color-accent-100: #fae0cb;
+  --color-accent: #e97132;
+  --color-accent-600: #cf5c1e;
+  --color-accent-700: #ac4b17;
+
+  --color-success-50: #ecf4ed;
+  --color-success-100: #d7e8d9;
+  --color-success: #196b24;
+  --color-success-700: #135519;
+
+  --color-ink: #333333;
+  --color-ink-soft: #5d646e;
+  --color-ink-faint: #8b929b;
+  --color-line: #e0e0e0;
+  --color-page: #eef2f4;
+
+  /* Card/panel background. Was a literal `bg-white` everywhere, which cannot follow a
+     theme — this token can. `text-white` deliberately stays literal: it sits on the
+     primary buttons and the steel machine tiles, which are dark in BOTH themes. */
+  --color-surface: #ffffff;
+}
+
+/*
+ * Dark theme.
+ *
+ * Overrides the design tokens rather than the ~70 utility call sites that use them —
+ * Tailwind v4 compiles colours to `var(--color-*)`, so re-pointing the variable re-themes
+ * every component at once. The signal colours (green/amber/red) are intentionally NOT
+ * inverted: a status light means the same thing in both themes, and the -soft variants
+ * already exist for dark surfaces.
+ */
+:root[data-theme='dark'] {
+  --color-page: #0d1b24;
+  --color-surface: #14252f;
+
+  --color-ink: #e8eef2;
+  --color-ink-soft: #a9b8c2;
+  --color-ink-faint: #7b8c98;
+  --color-line: #243b48;
+  --color-grid-line: #2a4353;
+
+  /* Neutrals carry hover states and muted panels; inverting the scale keeps those subtle
+     instead of turning into bright blocks. */
+  --color-neutral-50: #16272f;
+  --color-neutral-100: #1c303a;
+  --color-neutral-200: #26414f;
+  --color-neutral-300: #33505f;
+  --color-neutral-400: #5a7383;
+  --color-neutral-500: #93a7b3;
+
+  /* Tinted "soft" backgrounds become deep tints so coloured text stays readable on them. */
+  --color-primary-50: #12303f;
+  --color-primary-100: #183a4c;
+  --color-primary: #4a9ec4;
+  --color-primary-700: #6bb2d3;
+  --color-primary-800: #8cc6e0;
+
+  --color-accent-50: #3a2317;
+  --color-accent-100: #4d2f1d;
+  --color-accent: #f5894a;
+  --color-accent-600: #f79a62;
+  --color-accent-700: #f9ac7d;
+
+  --color-success-50: #12301f;
+  --color-success-100: #18402a;
+  --color-success: #45b06c;
+  --color-success-700: #5cc383;
+}
+
+html {
+  color-scheme: light;
+}
+
+/* Tells the browser to render form controls, scrollbars, and caret for a dark UI. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.55); opacity: 0; }
+  65% { transform: scale(1.07); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ring-ping {
+  0% { transform: scale(0.75); opacity: 0.7; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+/* Status-light breathing. Only ever applied to amber/red LEDs — a healthy plant should be
+   visually still, so movement on the floor map always means "look here". */
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.animate-pop { animation: pop-in 0.5s cubic-bezier(0.22, 1.4, 0.3, 1) both; }
+.animate-rise { animation: rise-in 0.32s ease-out both; }
+.animate-ring { animation: ring-ping 0.9s cubic-bezier(0, 0, 0.2, 1) 0.15s both; }
+.animate-led { animation: led-pulse 1.9s ease-in-out infinite; }
+
+/* Instrument readout: machine codes, sheet IDs, currency, timestamps, counts. */
+.readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Blueprint grid overlay for dark industrial panels. Pure CSS — no image assets. */
+.blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgba(181, 208, 223, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(181, 208, 223, 0.09) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-led { animation: none; }
+}

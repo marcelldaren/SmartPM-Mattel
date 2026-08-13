@@ -1,0 +1,94 @@
+# SmartPM — Render blueprint (free tier)
+#
+# Two services, because one Render service runs one language and this stack needs Node and
+# Python. Deliberately no Docker: Render's native runtimes need no image to build or debug,
+# which matters when there is no Docker installed to test one locally.
+#
+#   smartpm      Node — serves the API *and* the built React bundle on one origin.
+#                Auth is an httpOnly cookie, so a split origin would force SameSite=None
+#                plus CORS credentials. One origin avoids that entirely.
+#   smartpm-ai   Python — embeddings, drafting, search synthesis, scan. Gemini only;
+#                Ollama is local-development-only and is never deployed.
+#
+# Secrets are marked `sync: false`, which means Render prompts for them on first deploy and
+# stores them encrypted. They are never written to this file or committed.
+
+services:
+  - type: web
+    name: smartpm-ai
+    runtime: python
+    plan: free
+    rootDir: ai-service
+    buildCommand: pip install -r requirements.txt
+    # $PORT is assigned by Render; binding 0.0.0.0 (not 127.0.0.1) is what makes the
+    # container reachable from outside itself.
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: AI_CHAT_PROVIDER
+        value: gemini
+      - key: AI_EMBED_PROVIDER
+        value: gemini
+      - key: GEMINI_CHAT_MODEL
+        value: gemini-3.5-flash
+      # NOT text-embedding-004 — that model id returns 404. This one is verified working
+      # and returns 3072 dimensions, which is why the shipped demo database had to be
+      # re-embedded rather than reused from a local Ollama run.
+      - key: GEMINI_EMBED_MODEL
+        value: gemini-embedding-001
+      - key: GEMINI_API_KEY
+        sync: false
+
+  - type: web
+    name: smartpm
+    runtime: node
+    plan: free
+    # Node 24: `node:sqlite` is stable here. On Node 22 the same import needs
+    # --experimental-sqlite and the server would fail to boot without it.
+    buildCommand: >-
+      npm install &&
+      npm run build &&
+      cd server && npm install && cd .. &&
+      mkdir -p server/data &&
+      cp deploy/smartpm.demo.db server/data/smartpm.db
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # Generated once by Render and kept across deploys. Never hand-written here.
+      - key: JWT_SECRET
+        generateValue: true
+      # Resolved by Render to the AI service's internal URL — no hostname to hard-code and
+      # nothing to update if it changes.
+      - key: AI_SERVICE_URL
+        fromService:
+          name: smartpm-ai
+          type: web
+          property: hostport
+      # A sleeping free instance takes tens of seconds to wake. This ceiling is above that,
+      # so the first AI call of a demo waits for the service instead of timing out into the
+      # deterministic fallback.
+      - key: AI_SERVICE_TIMEOUT_MS
+        value: "120000"
+      - key: EMBED_MODEL_LABEL
+        value: gemini-embedding-001
+      # Where demo mail actually goes. The shipped database carries placeholder vendor
+      # addresses, so this is the only place a real inbox exists — set in the dashboard,
+      # never committed. Leave unset and vendor mail goes nowhere real.
+      - key: DEMO_VENDOR_EMAIL
+        sync: false
+      # Leave SMTP_USER/SMTP_PASS unset to keep the simulated send (status still flips,
+      # nothing leaves the server). Set them to deliver real mail.
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

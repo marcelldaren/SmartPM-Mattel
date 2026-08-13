@@ -1,0 +1,11 @@
+-- Small JPEG thumbnail of the evidence photo, as a base64 data URL.
+--
+-- Until now the image was sent, verified, and discarded — only the filename survived, so
+-- a supervisor reading "the photo shows a frayed belt" had no way to check that against
+-- the actual photo. A verdict you cannot audit against its evidence is not much of a
+-- verdict.
+--
+-- Deliberately a thumbnail (~220px, ~10-15 KB) rather than the full image: this is for
+-- confirming "yes, that's the photo the model described", not for pixel inspection, and
+-- storing full 1024px images inline would bloat the database for no added judgement.
+ALTER TABLE photo_verifications ADD COLUMN thumbnail TEXT;

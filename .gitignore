@@ -1,0 +1,42 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+.vercel
+
+# --- Secrets -----------------------------------------------------------------
+# These hold live credentials: the Gemini API key, the Gmail App Password, and the
+# JWT signing secret. They must never be committed. The .env.example templates are
+# committed instead, so a fresh checkout still knows which variables to set.
+.env
+.env.*
+!.env.example
+!**/.env.example
+server/.env
+ai-service/.env
+
+# --- Local data --------------------------------------------------------------
+# SQLite database plus its write-ahead-log sidecars. Real submitted checksheets,
+# findings, and part requests live here — local state, not source.
+server/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Exception: the demo database a deployment boots from. A hosted free tier has an
+# ephemeral filesystem, so shipping this file is what gives the deployed app its history
+# instead of an empty dashboard — and it restores a clean demo state on every restart.
+# It holds bcrypt password hashes and placeholder vendor addresses only; the address that
+# actually receives demo mail is injected at runtime via DEMO_VENDOR_EMAIL, never stored.
+!deploy/smartpm.demo.db
+
+# Deck screenshots are build output of a demo run, not source — and one of them shows a
+# real inbox in the vendor draft, so they stay out of a repository that may be public.
+demo-screenshots/
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+venv/

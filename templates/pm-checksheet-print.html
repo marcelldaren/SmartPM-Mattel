@@ -1,0 +1,1661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTMI — Preventive Maintenance Checksheet (Printable)</title>
+
+<!--
+  PRINTABLE PAPER CHECKSHEET — TEST ARTIFACT, NOT PART OF THE APPLICATION.
+
+  This is a static file. It is not a route, not a component, and nothing in smartpm/src
+  or smartpm/server imports it. It exists to be printed and photographed as the input
+  for a future camera-scan feature.
+
+  Every machine, inspection point, hint and finding category below is transcribed from
+  the running system's own source of truth:
+    - machines + per-machine checklists ...... server/src/seed.ts  (machineDefs)
+    - finding categories ..................... src/data.js         (FINDING_CATEGORIES)
+    - part-request trigger categories ........ src/data.js         (PART_REQUEST_CATEGORIES)
+                                               mirrored in server/src/routes/checksheets.ts
+    - captured submission fields ............. server/src/routes/checksheets.ts (bodySchema)
+    - technician roster ...................... server/src/seed.ts  (techs)
+
+  If any of those change, this file goes stale — it is a snapshot, not a live binding.
+
+  ONE DELIBERATE ADDITION: the Shift selector has no equivalent in the digital form
+  (the app only auto-stamps submitted_at). It is marked "paper only" everywhere it
+  appears so a later scan pass does not hunt for a column that has no home in the schema.
+-->
+
+<style>
+  /* ---------- Print geometry -------------------------------------------------- */
+  @page { size: A4 portrait; margin: 8mm 9mm; }
+
+  :root {
+    --rule: #000;
+    --rule-soft: #9a9a9a;
+    --band: #eeeeee;
+    --ink-soft: #444;
+    --box: 3.7mm;          /* checkbox edge — deliberately large enough to photograph */
+    --box-border: 0.35mm;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body {
+    margin: 0;
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    font-size: 9pt;
+    line-height: 1.15;
+    color: #000;
+    background: #f0f0f0;
+  }
+
+  /* ---------- One sheet = one machine = one page ------------------------------ */
+  .sheet {
+    width: 190mm;
+    min-height: 275mm;
+    margin: 8mm auto;
+    padding: 0;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,.25);
+    display: flex;
+    flex-direction: column;
+  }
+  .sheet + .sheet { page-break-before: always; }
+
+  /* ---------- Header ---------------------------------------------------------- */
+  .head { border: 0.5mm solid var(--rule); border-bottom: none; }
+
+  .head-top {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 0.35mm solid var(--rule);
+  }
+
+  .logo-slot {
+    width: 30mm;
+    flex: none;
+    border-right: 0.35mm solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.2mm 1mm;
+    text-align: center;
+  }
+  .logo-box {
+    width: 22mm; height: 9mm;
+    border: 0.35mm dashed var(--rule-soft);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11pt; font-weight: 700; letter-spacing: .06em;
+  }
+  .logo-cap { margin-top: 0.6mm; font-size: 5.5pt; color: var(--ink-soft); letter-spacing: .04em; }
+
+  .title-slot { flex: 1; padding: 1.8mm 4mm; }
+  .title-slot h1 { margin: 0; font-size: 13pt; letter-spacing: -.01em; }
+  .title-slot .org { margin: 0.5mm 0 0; font-size: 8pt; font-weight: 700; letter-spacing: .04em; }
+  .title-slot .doc { margin: 0.9mm 0 0; font-size: 7pt; color: var(--ink-soft); }
+
+  .sheet-no {
+    width: 34mm; flex: none;
+    border-left: 0.35mm solid var(--rule);
+    padding: 1.5mm 3mm;
+    font-size: 6.5pt; color: var(--ink-soft);
+  }
+  .sheet-no .lbl { display: block; letter-spacing: .05em; text-transform: uppercase; }
+  .sheet-no .rule { display: block; border-bottom: 0.3mm solid var(--rule); height: 4mm; margin-bottom: 1mm; }
+
+  /* Header entry fields */
+  .fields { display: flex; border-bottom: 0.35mm solid var(--rule); }
+  .field { flex: 1; padding: 1.3mm 3mm; border-right: 0.3mm dotted var(--rule-soft); }
+  .field:last-child { border-right: none; }
+  .field .lbl {
+    display: block; font-size: 6.5pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft);
+    margin-bottom: 0.8mm;
+  }
+  .write { display: block; border-bottom: 0.35mm solid var(--rule); height: 5mm; }
+  .roster { margin-top: 0.6mm; font-size: 5.5pt; color: var(--ink-soft); line-height: 1.2; }
+
+  /* Machine strip */
+  .machine-strip { display: flex; align-items: center; padding: 1.3mm 3mm; border-bottom: 0.35mm solid var(--rule); }
+  .machine-strip .lbl {
+    font-size: 6.5pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--ink-soft); margin-right: 3mm; flex: none;
+  }
+  .machine-opts { display: flex; gap: 3.5mm; flex-wrap: wrap; flex: 1; }
+  .machine-opt { display: flex; align-items: center; gap: 1.4mm; font-size: 7.5pt; }
+  .machine-opt.on { font-weight: 700; }
+  .machine-opt .code { color: var(--ink-soft); font-size: 6.5pt; }
+  .preselect { font-size: 5.8pt; color: var(--ink-soft); flex: none; margin-left: 3mm; }
+
+  /* Machine context line */
+  .context {
+    display: flex; gap: 6mm; flex-wrap: wrap;
+    padding: 1.2mm 3mm; background: var(--band);
+    border-bottom: 0.35mm solid var(--rule);
+    font-size: 7pt;
+  }
+  .context b { font-weight: 700; }
+
+  /* ---------- Checkbox primitive ---------------------------------------------- */
+  .cb {
+    display: inline-block; flex: none;
+    width: var(--box); height: var(--box);
+    border: var(--box-border) solid var(--rule);
+    background: #fff;
+    vertical-align: -0.5mm;
+  }
+  .cb.checked { background: #000; }
+
+  /* ---------- Inspection table ------------------------------------------------ */
+  table.points { width: 100%; border-collapse: collapse; }
+
+  table.points thead th {
+    background: var(--band);
+    border: 0.35mm solid var(--rule);
+    border-bottom-width: 0.5mm;
+    padding: 1.1mm 2mm;
+    font-size: 6.5pt; text-transform: uppercase; letter-spacing: .07em;
+    text-align: left;
+  }
+  th.c-num { width: 9mm; text-align: center; }
+  th.c-res { width: 40mm; text-align: center; }
+
+  tr.point > td {
+    border-left: 0.35mm solid var(--rule);
+    border-right: 0.35mm solid var(--rule);
+    border-top: 0.35mm solid var(--rule);
+    padding: 1.5mm 2mm;
+    vertical-align: top;
+  }
+  td.num { text-align: center; font-weight: 700; font-size: 8.5pt; padding-top: 1.4mm; }
+  td.desc .label { font-size: 9.5pt; font-weight: 700; }
+  td.desc .hint { display: block; margin-top: 0.35mm; font-size: 7pt; color: var(--ink-soft); }
+
+  td.res { text-align: center; }
+  .pf { display: inline-flex; gap: 6mm; }
+  .pf label { display: inline-flex; align-items: center; gap: 1.6mm; font-size: 9pt; font-weight: 700; }
+
+  /* Findings sub-row — only filled in when the point is marked FAIL */
+  tr.findings > td {
+    border-left: 0.35mm solid var(--rule);
+    border-right: 0.35mm solid var(--rule);
+    padding: 0;
+  }
+  .fbox {
+    margin: 0 0 0 9mm;
+    border-left: 0.3mm solid var(--rule-soft);
+    padding: 1mm 1.5mm 1.2mm 2.5mm;
+  }
+  .fhead {
+    display: flex; align-items: center; gap: 3mm;
+    font-size: 6.5pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--ink-soft); margin-bottom: 0.9mm;
+  }
+  .fhead .req { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+  .cats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6mm 3mm; }
+  .cat { display: flex; align-items: center; gap: 1.5mm; font-size: 7.5pt; }
+  .cat .star { font-weight: 700; }
+
+  .photo-line {
+    display: flex; align-items: center; gap: 2mm;
+    margin-left: auto; flex: none;
+    font-size: 7.5pt; text-transform: none; letter-spacing: 0;
+  }
+  .photo-line .lbl { font-weight: 700; }
+  .photo-line label { display: inline-flex; align-items: center; gap: 1.5mm; }
+  .photo-line .ref { font-size: 6pt; font-weight: 400; color: var(--ink-soft); }
+
+  tbody tr:last-child > td { border-bottom: 0.5mm solid var(--rule); }
+
+  /* ---------- Legend + sign-off ----------------------------------------------- */
+  .tail { margin-top: auto; }
+
+  .legend {
+    border: 0.35mm solid var(--rule); border-top: none;
+    padding: 1.2mm 3mm; font-size: 6.2pt; color: var(--ink-soft); line-height: 1.3;
+  }
+  .legend b { color: #000; }
+
+  .office {
+    border: 0.35mm solid var(--rule); border-top: none;
+    background: var(--band);
+    padding: 1.2mm 3mm;
+  }
+  .office .cap {
+    font-size: 6.2pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--ink-soft); margin-bottom: 0.9mm;
+  }
+  .office-grid { display: flex; gap: 4mm; }
+  .office-cell { flex: 1; font-size: 6.5pt; color: var(--ink-soft); }
+  .office-cell .rule { display: block; border-bottom: 0.3mm solid var(--rule-soft); height: 3.6mm; }
+
+  .signoff { border: 0.5mm solid var(--rule); border-top: none; display: flex; }
+  .sign { flex: 1; padding: 1.6mm 3mm 1.4mm; border-right: 0.3mm dotted var(--rule-soft); }
+  .sign:last-child { border-right: none; }
+  .sign .lbl {
+    font-size: 6.5pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--ink-soft);
+  }
+  .sign .space { display: block; border-bottom: 0.35mm solid var(--rule); height: 11mm; }
+  .sign .cap { display: block; margin-top: 0.6mm; font-size: 6pt; color: var(--ink-soft); }
+
+  .foot {
+    display: flex; justify-content: space-between;
+    padding: 1mm 1mm 0; font-size: 6pt; color: var(--ink-soft);
+  }
+
+  /* ---------- Screen-only preview banner --------------------------------------- */
+  .banner {
+    max-width: 190mm; margin: 8mm auto -2mm; padding: 4mm 5mm;
+    background: #14303f; color: #fff; border-radius: 3px;
+    font-size: 10pt; line-height: 1.5;
+  }
+  .banner h2 { margin: 0 0 2mm; font-size: 12pt; }
+  .banner p { margin: 0 0 2mm; }
+  .banner p:last-child { margin-bottom: 0; }
+  .banner code {
+    background: rgba(255,255,255,.14); padding: 0.5mm 1.5mm;
+    border-radius: 2px; font-family: "Consolas", monospace; font-size: 9pt;
+  }
+
+  @media print {
+    body { background: #fff; }
+    .banner { display: none; }
+    .sheet { width: auto; min-height: 0; margin: 0; box-shadow: none; }
+    /* A block must never be split across a page boundary — a findings list orphaned
+       from its inspection point is unusable both on paper and to a scanner. */
+    tr.point, tr.findings, .signoff, .office { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <h2>Preview — 4 pages, one per machine</h2>
+  <p>Print at <b>100% scale / A4</b> with margins set to <b>Default</b> (not "None"). Turn
+     <b>Background graphics ON</b> — the header bands and table shading are part of the
+     layout a scanner will key off.</p>
+  <p>This banner does not print. Save as PDF via <code>Ctrl+P → Save as PDF</code>.</p>
+</div>
+
+<!-- ============================== SHEET 1 ================================== -->
+<section class="sheet">
+  <div class="head">
+    <div class="head-top">
+      <div class="logo-slot">
+        <div class="logo-box">PTMI</div>
+        <div class="logo-cap">LOGO PLACEHOLDER</div>
+      </div>
+      <div class="title-slot">
+        <h1>Preventive Maintenance Checksheet</h1>
+        <p class="org">PT MATTEL INDONESIA</p>
+        <p class="doc">Form PM-STD-06 · Rev 4 · Page 1 of 4 — one sheet per machine</p>
+      </div>
+      <div class="sheet-no">
+        <span class="lbl">Work order no.</span>
+        <span class="rule"></span>
+        <span class="lbl">Sheet ref.</span>
+        <span class="rule"></span>
+      </div>
+    </div>
+
+    <div class="fields">
+      <div class="field" style="flex:1.15">
+        <span class="lbl">Date</span>
+        <span class="write"></span>
+      </div>
+      <div class="field" style="flex:1.9">
+        <span class="lbl">Technician name</span>
+        <span class="write"></span>
+        <span class="roster">Registered: Budi Santoso · Sari Rahmawati · Agus Wijaya (Tristar Maintenance) · Dewi Lestari · Rizky Pratama · Andi Saputra (Apex Industrial Services)</span>
+      </div>
+      <div class="field" style="flex:1.5">
+        <span class="lbl">Shift <span style="font-weight:400;text-transform:none;letter-spacing:0">(paper only)</span></span>
+        <div style="display:flex;gap:3.5mm;margin-top:1.5mm;font-size:7.5pt">
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>1</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>2</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>3</label>
+        </div>
+      </div>
+      <div class="field" style="flex:1">
+        <span class="lbl">Time started</span>
+        <span class="write"></span>
+      </div>
+    </div>
+
+    <div class="machine-strip">
+      <span class="lbl">Machine</span>
+      <div class="machine-opts">
+        <span class="machine-opt on"><span class="cb checked"></span>CNC Mill #3 <span class="code">MC-104</span></span>
+        <span class="machine-opt"><span class="cb"></span>Injection Molder A2 <span class="code">MC-221</span></span>
+        <span class="machine-opt"><span class="cb"></span>Conveyor Line 7 <span class="code">MC-317</span></span>
+        <span class="machine-opt"><span class="cb"></span>Packaging Robot B1 <span class="code">MC-412</span></span>
+      </div>
+      <span class="preselect">pre-selected<br>for this sheet</span>
+    </div>
+
+    <div class="context">
+      <span><b>Area:</b> Machining — Bay 2</span>
+      <span><b>PM interval:</b> Every 30 days</span>
+      <span><b>Inspection points:</b> 6</span>
+    </div>
+  </div>
+
+  <table class="points">
+    <thead>
+      <tr>
+        <th class="c-num">#</th>
+        <th>Inspection point</th>
+        <th class="c-res">Result</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="point">
+        <td class="num">01</td>
+        <td class="desc">
+          <span class="label">Spindle lubrication level</span>
+          <span class="hint">Reservoir between MIN–MAX marks</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">02</td>
+        <td class="desc">
+          <span class="label">Coolant concentration</span>
+          <span class="hint">Target 6–8% on refractometer</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">03</td>
+        <td class="desc">
+          <span class="label">Way covers &amp; wipers</span>
+          <span class="hint">No tears, chips cleared from tracks</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">04</td>
+        <td class="desc">
+          <span class="label">Tool changer alignment</span>
+          <span class="hint">Dry-run 3 change cycles</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">05</td>
+        <td class="desc">
+          <span class="label">Axis backlash check</span>
+          <span class="hint">X/Y axis ≤ 0.01 mm</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">06</td>
+        <td class="desc">
+          <span class="label">Cabinet air filter</span>
+          <span class="hint">Swap if pressure drop &gt; 250 Pa</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <div class="tail">
+    <div class="legend">
+      <b>*</b> &nbsp;These two categories automatically draft a vendor part-request email on submission.
+      Every other category is logged as a finding only.<br>
+      A category is <b>mandatory</b> for any point marked FAIL — the digital form rejects a fail with no category.
+      Tick <b>one</b> category per failed point. Leave the whole band blank for points marked PASS.<br>
+      There is no free-text field on this form by design: every entry is a fixed choice.
+    </div>
+
+    <div class="office">
+      <div class="cap">Generated by SmartPM on entry — do not fill by hand</div>
+      <div class="office-grid">
+        <div class="office-cell">Checksheet code (CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Work order (WO-CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Sheet status<span class="rule"></span></div>
+        <div class="office-cell">Severity per finding<span class="rule"></span></div>
+        <div class="office-cell">Submitted timestamp<span class="rule"></span></div>
+      </div>
+    </div>
+
+    <div class="signoff">
+      <div class="sign" style="flex:2">
+        <span class="lbl">Technician signature</span>
+        <span class="space"></span>
+        <span class="cap">I confirm every inspection point above was physically checked.</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Date</span>
+        <span class="space"></span>
+        <span class="cap">DD / MM / YYYY</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Time completed</span>
+        <span class="space"></span>
+        <span class="cap">HH : MM</span>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>PM-STD-06 Rev 4 — CNC Mill #3 (MC-104)</span>
+      <span>Page 1 of 4</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SHEET 2 ================================== -->
+<section class="sheet">
+  <div class="head">
+    <div class="head-top">
+      <div class="logo-slot">
+        <div class="logo-box">PTMI</div>
+        <div class="logo-cap">LOGO PLACEHOLDER</div>
+      </div>
+      <div class="title-slot">
+        <h1>Preventive Maintenance Checksheet</h1>
+        <p class="org">PT MATTEL INDONESIA</p>
+        <p class="doc">Form PM-STD-06 · Rev 4 · Page 2 of 4 — one sheet per machine</p>
+      </div>
+      <div class="sheet-no">
+        <span class="lbl">Work order no.</span>
+        <span class="rule"></span>
+        <span class="lbl">Sheet ref.</span>
+        <span class="rule"></span>
+      </div>
+    </div>
+
+    <div class="fields">
+      <div class="field" style="flex:1.15">
+        <span class="lbl">Date</span>
+        <span class="write"></span>
+      </div>
+      <div class="field" style="flex:1.9">
+        <span class="lbl">Technician name</span>
+        <span class="write"></span>
+        <span class="roster">Registered: Budi Santoso · Sari Rahmawati · Agus Wijaya (Tristar Maintenance) · Dewi Lestari · Rizky Pratama · Andi Saputra (Apex Industrial Services)</span>
+      </div>
+      <div class="field" style="flex:1.5">
+        <span class="lbl">Shift <span style="font-weight:400;text-transform:none;letter-spacing:0">(paper only)</span></span>
+        <div style="display:flex;gap:3.5mm;margin-top:1.5mm;font-size:7.5pt">
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>1</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>2</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>3</label>
+        </div>
+      </div>
+      <div class="field" style="flex:1">
+        <span class="lbl">Time started</span>
+        <span class="write"></span>
+      </div>
+    </div>
+
+    <div class="machine-strip">
+      <span class="lbl">Machine</span>
+      <div class="machine-opts">
+        <span class="machine-opt"><span class="cb"></span>CNC Mill #3 <span class="code">MC-104</span></span>
+        <span class="machine-opt on"><span class="cb checked"></span>Injection Molder A2 <span class="code">MC-221</span></span>
+        <span class="machine-opt"><span class="cb"></span>Conveyor Line 7 <span class="code">MC-317</span></span>
+        <span class="machine-opt"><span class="cb"></span>Packaging Robot B1 <span class="code">MC-412</span></span>
+      </div>
+      <span class="preselect">pre-selected<br>for this sheet</span>
+    </div>
+
+    <div class="context">
+      <span><b>Area:</b> Molding — Hall A</span>
+      <span><b>PM interval:</b> Every 30 days</span>
+      <span><b>Inspection points:</b> 6</span>
+    </div>
+  </div>
+
+  <table class="points">
+    <thead>
+      <tr>
+        <th class="c-num">#</th>
+        <th>Inspection point</th>
+        <th class="c-res">Result</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="point">
+        <td class="num">01</td>
+        <td class="desc">
+          <span class="label">Hydraulic oil level &amp; temperature</span>
+          <span class="hint">45–55 °C at idle</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">02</td>
+        <td class="desc">
+          <span class="label">Heater band continuity</span>
+          <span class="hint">Zones 1–6 within ±5%</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">03</td>
+        <td class="desc">
+          <span class="label">Nozzle &amp; barrel condition</span>
+          <span class="hint">No drool, no scoring</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">04</td>
+        <td class="desc">
+          <span class="label">Mold position sensor</span>
+          <span class="hint">Verify trigger at set point</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">05</td>
+        <td class="desc">
+          <span class="label">Safety gate interlock</span>
+          <span class="hint">Must halt cycle instantly</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">06</td>
+        <td class="desc">
+          <span class="label">Water lines &amp; fittings</span>
+          <span class="hint">No leaks at manifold</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <div class="tail">
+    <div class="legend">
+      <b>*</b> &nbsp;These two categories automatically draft a vendor part-request email on submission.
+      Every other category is logged as a finding only.<br>
+      A category is <b>mandatory</b> for any point marked FAIL — the digital form rejects a fail with no category.
+      Tick <b>one</b> category per failed point. Leave the whole band blank for points marked PASS.<br>
+      There is no free-text field on this form by design: every entry is a fixed choice.
+    </div>
+
+    <div class="office">
+      <div class="cap">Generated by SmartPM on entry — do not fill by hand</div>
+      <div class="office-grid">
+        <div class="office-cell">Checksheet code (CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Work order (WO-CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Sheet status<span class="rule"></span></div>
+        <div class="office-cell">Severity per finding<span class="rule"></span></div>
+        <div class="office-cell">Submitted timestamp<span class="rule"></span></div>
+      </div>
+    </div>
+
+    <div class="signoff">
+      <div class="sign" style="flex:2">
+        <span class="lbl">Technician signature</span>
+        <span class="space"></span>
+        <span class="cap">I confirm every inspection point above was physically checked.</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Date</span>
+        <span class="space"></span>
+        <span class="cap">DD / MM / YYYY</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Time completed</span>
+        <span class="space"></span>
+        <span class="cap">HH : MM</span>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>PM-STD-06 Rev 4 — Injection Molder A2 (MC-221)</span>
+      <span>Page 2 of 4</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SHEET 3 ================================== -->
+<section class="sheet">
+  <div class="head">
+    <div class="head-top">
+      <div class="logo-slot">
+        <div class="logo-box">PTMI</div>
+        <div class="logo-cap">LOGO PLACEHOLDER</div>
+      </div>
+      <div class="title-slot">
+        <h1>Preventive Maintenance Checksheet</h1>
+        <p class="org">PT MATTEL INDONESIA</p>
+        <p class="doc">Form PM-STD-06 · Rev 4 · Page 3 of 4 — one sheet per machine</p>
+      </div>
+      <div class="sheet-no">
+        <span class="lbl">Work order no.</span>
+        <span class="rule"></span>
+        <span class="lbl">Sheet ref.</span>
+        <span class="rule"></span>
+      </div>
+    </div>
+
+    <div class="fields">
+      <div class="field" style="flex:1.15">
+        <span class="lbl">Date</span>
+        <span class="write"></span>
+      </div>
+      <div class="field" style="flex:1.9">
+        <span class="lbl">Technician name</span>
+        <span class="write"></span>
+        <span class="roster">Registered: Budi Santoso · Sari Rahmawati · Agus Wijaya (Tristar Maintenance) · Dewi Lestari · Rizky Pratama · Andi Saputra (Apex Industrial Services)</span>
+      </div>
+      <div class="field" style="flex:1.5">
+        <span class="lbl">Shift <span style="font-weight:400;text-transform:none;letter-spacing:0">(paper only)</span></span>
+        <div style="display:flex;gap:3.5mm;margin-top:1.5mm;font-size:7.5pt">
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>1</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>2</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>3</label>
+        </div>
+      </div>
+      <div class="field" style="flex:1">
+        <span class="lbl">Time started</span>
+        <span class="write"></span>
+      </div>
+    </div>
+
+    <div class="machine-strip">
+      <span class="lbl">Machine</span>
+      <div class="machine-opts">
+        <span class="machine-opt"><span class="cb"></span>CNC Mill #3 <span class="code">MC-104</span></span>
+        <span class="machine-opt"><span class="cb"></span>Injection Molder A2 <span class="code">MC-221</span></span>
+        <span class="machine-opt on"><span class="cb checked"></span>Conveyor Line 7 <span class="code">MC-317</span></span>
+        <span class="machine-opt"><span class="cb"></span>Packaging Robot B1 <span class="code">MC-412</span></span>
+      </div>
+      <span class="preselect">pre-selected<br>for this sheet</span>
+    </div>
+
+    <div class="context">
+      <span><b>Area:</b> Final Assembly — Line 7</span>
+      <span><b>PM interval:</b> Every 30 days</span>
+      <span><b>Inspection points:</b> 6</span>
+    </div>
+  </div>
+
+  <table class="points">
+    <thead>
+      <tr>
+        <th class="c-num">#</th>
+        <th>Inspection point</th>
+        <th class="c-res">Result</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="point">
+        <td class="num">01</td>
+        <td class="desc">
+          <span class="label">Belt tension &amp; tracking</span>
+          <span class="hint">Deflection ≤ 12 mm mid-span</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">02</td>
+        <td class="desc">
+          <span class="label">Drive motor spark plug</span>
+          <span class="hint">Gap 0.8 mm, no fouling</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">03</td>
+        <td class="desc">
+          <span class="label">Roller bearings</span>
+          <span class="hint">No play or grinding noise</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">04</td>
+        <td class="desc">
+          <span class="label">Drive chain &amp; belt lubrication</span>
+          <span class="hint">Full pass with SKF LGMT 2</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">05</td>
+        <td class="desc">
+          <span class="label">Photo sensor alignment</span>
+          <span class="hint">Beam centered on reflector</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">06</td>
+        <td class="desc">
+          <span class="label">Emergency stop circuit</span>
+          <span class="hint">Test both end stations</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <div class="tail">
+    <div class="legend">
+      <b>*</b> &nbsp;These two categories automatically draft a vendor part-request email on submission.
+      Every other category is logged as a finding only.<br>
+      A category is <b>mandatory</b> for any point marked FAIL — the digital form rejects a fail with no category.
+      Tick <b>one</b> category per failed point. Leave the whole band blank for points marked PASS.<br>
+      There is no free-text field on this form by design: every entry is a fixed choice.
+    </div>
+
+    <div class="office">
+      <div class="cap">Generated by SmartPM on entry — do not fill by hand</div>
+      <div class="office-grid">
+        <div class="office-cell">Checksheet code (CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Work order (WO-CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Sheet status<span class="rule"></span></div>
+        <div class="office-cell">Severity per finding<span class="rule"></span></div>
+        <div class="office-cell">Submitted timestamp<span class="rule"></span></div>
+      </div>
+    </div>
+
+    <div class="signoff">
+      <div class="sign" style="flex:2">
+        <span class="lbl">Technician signature</span>
+        <span class="space"></span>
+        <span class="cap">I confirm every inspection point above was physically checked.</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Date</span>
+        <span class="space"></span>
+        <span class="cap">DD / MM / YYYY</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Time completed</span>
+        <span class="space"></span>
+        <span class="cap">HH : MM</span>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>PM-STD-06 Rev 4 — Conveyor Line 7 (MC-317)</span>
+      <span>Page 3 of 4</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SHEET 4 ================================== -->
+<section class="sheet">
+  <div class="head">
+    <div class="head-top">
+      <div class="logo-slot">
+        <div class="logo-box">PTMI</div>
+        <div class="logo-cap">LOGO PLACEHOLDER</div>
+      </div>
+      <div class="title-slot">
+        <h1>Preventive Maintenance Checksheet</h1>
+        <p class="org">PT MATTEL INDONESIA</p>
+        <p class="doc">Form PM-STD-06 · Rev 4 · Page 4 of 4 — one sheet per machine</p>
+      </div>
+      <div class="sheet-no">
+        <span class="lbl">Work order no.</span>
+        <span class="rule"></span>
+        <span class="lbl">Sheet ref.</span>
+        <span class="rule"></span>
+      </div>
+    </div>
+
+    <div class="fields">
+      <div class="field" style="flex:1.15">
+        <span class="lbl">Date</span>
+        <span class="write"></span>
+      </div>
+      <div class="field" style="flex:1.9">
+        <span class="lbl">Technician name</span>
+        <span class="write"></span>
+        <span class="roster">Registered: Budi Santoso · Sari Rahmawati · Agus Wijaya (Tristar Maintenance) · Dewi Lestari · Rizky Pratama · Andi Saputra (Apex Industrial Services)</span>
+      </div>
+      <div class="field" style="flex:1.5">
+        <span class="lbl">Shift <span style="font-weight:400;text-transform:none;letter-spacing:0">(paper only)</span></span>
+        <div style="display:flex;gap:3.5mm;margin-top:1.5mm;font-size:7.5pt">
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>1</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>2</label>
+          <label style="display:flex;align-items:center;gap:1.4mm"><span class="cb"></span>3</label>
+        </div>
+      </div>
+      <div class="field" style="flex:1">
+        <span class="lbl">Time started</span>
+        <span class="write"></span>
+      </div>
+    </div>
+
+    <div class="machine-strip">
+      <span class="lbl">Machine</span>
+      <div class="machine-opts">
+        <span class="machine-opt"><span class="cb"></span>CNC Mill #3 <span class="code">MC-104</span></span>
+        <span class="machine-opt"><span class="cb"></span>Injection Molder A2 <span class="code">MC-221</span></span>
+        <span class="machine-opt"><span class="cb"></span>Conveyor Line 7 <span class="code">MC-317</span></span>
+        <span class="machine-opt on"><span class="cb checked"></span>Packaging Robot B1 <span class="code">MC-412</span></span>
+      </div>
+      <span class="preselect">pre-selected<br>for this sheet</span>
+    </div>
+
+    <div class="context">
+      <span><b>Area:</b> Packing — Cell B</span>
+      <span><b>PM interval:</b> Every 45 days</span>
+      <span><b>Inspection points:</b> 6</span>
+    </div>
+  </div>
+
+  <table class="points">
+    <thead>
+      <tr>
+        <th class="c-num">#</th>
+        <th>Inspection point</th>
+        <th class="c-res">Result</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <tr class="point">
+        <td class="num">01</td>
+        <td class="desc">
+          <span class="label">Gripper pads &amp; alignment</span>
+          <span class="hint">Replace pads worn below 2 mm</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">02</td>
+        <td class="desc">
+          <span class="label">Vacuum cup seals</span>
+          <span class="hint">Hold 8 s at −60 kPa</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">03</td>
+        <td class="desc">
+          <span class="label">Servo motor temperature</span>
+          <span class="hint">&lt; 65 °C after 10 cycles</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">04</td>
+        <td class="desc">
+          <span class="label">Cable carrier condition</span>
+          <span class="hint">No cracked links</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">05</td>
+        <td class="desc">
+          <span class="label">Home position calibration</span>
+          <span class="hint">Offset ≤ 0.5 mm</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      <tr class="point">
+        <td class="num">06</td>
+        <td class="desc">
+          <span class="label">Safety scanner zones</span>
+          <span class="hint">Verify slow &amp; stop fields</span>
+        </td>
+        <td class="res">
+          <span class="pf">
+            <label><span class="cb"></span>Pass</label>
+            <label><span class="cb"></span>Fail</label>
+          </span>
+        </td>
+      </tr>
+      <tr class="findings">
+        <td colspan="3">
+          <div class="fbox">
+            <div class="fhead">
+              <span>If FAIL — finding category <span class="req">(select exactly one — required)</span></span>
+              <span class="photo-line">
+                <span class="lbl">Photo attached</span>
+                <label><span class="cb"></span>Yes</label>
+                <label><span class="cb"></span>No</label>
+                <span class="ref">photo file ref. ______________</span>
+              </span>
+            </div>
+            <div class="cats">
+              <span class="cat"><span class="cb"></span>Damaged part <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs replacement <span class="star">*</span></span>
+              <span class="cat"><span class="cb"></span>Needs lubrication</span>
+              <span class="cat"><span class="cb"></span>Misaligned</span>
+              <span class="cat"><span class="cb"></span>Leak detected</span>
+              <span class="cat"><span class="cb"></span>Abnormal noise / vibration</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <div class="tail">
+    <div class="legend">
+      <b>*</b> &nbsp;These two categories automatically draft a vendor part-request email on submission.
+      Every other category is logged as a finding only.<br>
+      A category is <b>mandatory</b> for any point marked FAIL — the digital form rejects a fail with no category.
+      Tick <b>one</b> category per failed point. Leave the whole band blank for points marked PASS.<br>
+      There is no free-text field on this form by design: every entry is a fixed choice.
+    </div>
+
+    <div class="office">
+      <div class="cap">Generated by SmartPM on entry — do not fill by hand</div>
+      <div class="office-grid">
+        <div class="office-cell">Checksheet code (CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Work order (WO-CS-####)<span class="rule"></span></div>
+        <div class="office-cell">Sheet status<span class="rule"></span></div>
+        <div class="office-cell">Severity per finding<span class="rule"></span></div>
+        <div class="office-cell">Submitted timestamp<span class="rule"></span></div>
+      </div>
+    </div>
+
+    <div class="signoff">
+      <div class="sign" style="flex:2">
+        <span class="lbl">Technician signature</span>
+        <span class="space"></span>
+        <span class="cap">I confirm every inspection point above was physically checked.</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Date</span>
+        <span class="space"></span>
+        <span class="cap">DD / MM / YYYY</span>
+      </div>
+      <div class="sign">
+        <span class="lbl">Time completed</span>
+        <span class="space"></span>
+        <span class="cap">HH : MM</span>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>PM-STD-06 Rev 4 — Packaging Robot B1 (MC-412)</span>
+      <span>Page 4 of 4</span>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

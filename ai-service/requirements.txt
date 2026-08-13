@@ -1,0 +1,13 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+openai==1.59.6
+pydantic==2.10.4
+python-dotenv==1.0.1
+
+# Paper-checksheet scanning (scan.py): blur detection, contour finding, perspective
+# correction. main.py imports scan at module load, so without these the whole service
+# fails to start — not just the scan endpoint.
+# "headless" is the same library without the GUI/highlgui bindings, which a server has no
+# use for and which drag in system packages that are awkward on a clean machine.
+opencv-python-headless==4.13.0.92
+numpy==2.2.5
