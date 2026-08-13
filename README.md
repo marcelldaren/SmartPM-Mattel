@@ -1,3 +1,18 @@
+---
+title: SmartPM
+emoji: 🔧
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
+<!-- The block above is configuration for Hugging Face Spaces, which reads it from the top
+     of README.md to learn how to run this repo. app_port must match the port the container
+     listens on (see Dockerfile). GitHub renders it as a small table and is otherwise
+     unaffected. Deleting it stops the Space from starting. -->
+
 # SmartPM — Digital PM Verification
 
 A digital preventive-maintenance verification platform for PT Mattel Indonesia (PTMI),
