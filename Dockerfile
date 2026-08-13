@@ -15,7 +15,12 @@ FROM node:24-slim
 # --experimental-sqlite and the server would refuse to boot without the flag.
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-pip curl \
+ && apt-get install -y --no-install-recommends \
+      python3 python3-pip curl \
+      # OpenCV's "headless" wheel drops the GUI bindings but still links against glib, and
+      # a slim image does not ship it. Without this, `import cv2` fails at load with a
+      # missing-shared-object error that names libglib rather than anything about OpenCV.
+      libglib2.0-0 \
  && rm -rf /var/lib/apt/lists/*
 
 # Spaces run the container as uid 1000, not root. Building as that same user means every

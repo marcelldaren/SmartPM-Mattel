@@ -20,7 +20,17 @@ load_dotenv()  # read ai-service/.env before importing the provider config
 from fastapi import FastAPI  # noqa: E402
 
 import llm  # noqa: E402
-import scan  # noqa: E402
+
+# Paper scanning is the only feature here that needs OpenCV, and OpenCV is the only
+# dependency that needs system libraries beyond the Python runtime. Importing it at module
+# load used to mean a container missing those libraries lost the *entire* service —
+# embeddings, drafting, search synthesis and reports included — because of one endpoint
+# nobody had called yet. Degrading to "scanning unavailable" keeps everything else serving.
+try:
+    import scan  # noqa: E402
+except Exception as exc:  # ImportError, or a native load failure inside cv2
+    scan = None
+    print(f"[startup] scan unavailable, continuing without it: {exc}")
 from schemas import (  # noqa: E402
     ConsolidateRequest,
     ConsolidateResponse,
@@ -683,6 +693,15 @@ def scan_checksheet(req: ScanRequest):
             supported=False,
             reason="provider",
             note="Scanning requires the Gemini engine.",
+        )
+
+    # Checked before the block below, which references scan.ScanImageError and would itself
+    # raise AttributeError if the module never loaded.
+    if scan is None:
+        return ScanResponse(
+            supported=False,
+            reason="provider",
+            note="Paper scanning is not available in this deployment.",
         )
 
     # --- Local image pipeline (blur gate -> page detect -> deskew) ---------------------
